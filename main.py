@@ -1,29 +1,28 @@
 import asyncio
 from aiogram import Bot, Dispatcher, types
-from aiogram.utils import executor
 from aiogram.types import ChatPermissions
 from datetime import datetime, timedelta
 
-import os
-TOKEN = os.getenv("TOKEN")
+TOKEN = "ТВОЙ_ТОКЕН"
 bot = Bot(token=TOKEN)
-dp = Dispatcher(bot)
+dp = Dispatcher()
 
 resale_topic_id = None  # ID гілки для оголошень
 user_last_message_time = {}  # Час останнього повідомлення користувача
 user_message_count = {}  # Лічильник повідомлень користувача
 
 
-@dp.message_handler(commands=["resale_topic"])
+@dp.message(lambda message: message.text and message.text.startswith("/resale_topic"))
 async def set_resale_topic(message: types.Message):
     global resale_topic_id
     resale_topic_id = message.message_thread_id  # Запам’ятовуємо ID гілки
     await message.answer("✅ Бот тепер контролює цю гілку на відповідність правилам.")
 
 
-@dp.message_handler(lambda message: resale_topic_id and message.message_thread_id == resale_topic_id)
+@dp.message(lambda message: resale_topic_id and message.message_thread_id == resale_topic_id)
 async def delete_wrong_messages(message: types.Message):
-    if message.from_user.id in [admin.user.id for admin in await message.chat.get_administrators()]:
+    chat_admins = [admin.user.id for admin in await bot.get_chat_administrators(message.chat.id)]
+    if message.from_user.id in chat_admins:
         return  # Адмінам можна все
 
     user_id = message.from_user.id
@@ -46,13 +45,13 @@ async def delete_wrong_messages(message: types.Message):
     user_last_message_time[user_id] = current_time  # Оновлення часу останнього повідомлення
 
     # Перевірка на відповідність правилам
-    if not any(word in message.text.lower() for word in ["куплю", "продам"]):
+    if not any(word in message.text.lower() for word in ["#куплю", "#продам"]):
         await message.delete()
         await message.answer(f"@{message.from_user.username}, ваше повідомлення було видалено, оскільки воно не містить хештегів '#куплю' або '#продам'.")
         user_message_count[user_id] -= 1  # Якщо видалено, не враховуємо у ліміті
 
 
-@dp.message_handler(content_types=[types.ContentType.NEW_CHAT_MEMBERS])
+@dp.message(lambda message: message.new_chat_members)
 async def welcome_new_member(message: types.Message):
     for new_member in message.new_chat_members:
         username = f"@{new_member.username}" if new_member.username else "новий учасник"
@@ -68,5 +67,11 @@ async def welcome_new_member(message: types.Message):
         await message.delete()
 
 
+async def main():
+    await bot.delete_webhook(drop_pending_updates=True)
+    dp.include_router(dp)  # Додаємо роутер у диспетчер
+    await dp.start_polling(bot)
+
+
 if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True)
+    asyncio.run(main())

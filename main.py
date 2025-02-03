@@ -4,7 +4,8 @@ from aiogram.utils import executor
 from aiogram.types import ChatPermissions
 from datetime import datetime, timedelta
 
-TOKEN = "7904363924:AAHVwfInQyrRvwQLIIWKrdqWkkzB4ITxNWU"
+import os
+TOKEN = os.getenv("TOKEN")
 bot = Bot(token=TOKEN)
 dp = Dispatcher(bot)
 
